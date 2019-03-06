@@ -1,0 +1,140 @@
+import time
+import math
+import paho.mqtt.client	as mqtt
+import msgpack
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib import animation  
+
+
+# 三个rssi队列
+rssi_list_1 = []
+rssi_list_2 = []
+rssi_list_3 = []
+
+
+def	on_subscribe(mosq, obj,	mid, granted_qos):
+	print("Subscribed: " + str(mid))
+
+def	on_message(mosq, obj, msg):
+	# print(msgpack.unpackb(msg.payload))
+	# print(msgpack.unpackb(msg.payload)[b'mac'])
+	# 将此MAC地址改为自己网关的MAC地址
+	if (msgpack.unpackb(msg.payload)[b'mac'] == b"B4E62DC0414D"):
+		
+		print("===============================================")
+		print("id:", msgpack.unpackb(msg.payload)[b'mid'])
+		print("网关IP地址:", msgpack.unpackb(msg.payload)[b'ip'])
+		msgpack_list = msgpack.unpackb(msg.payload)[b'devices']
+		
+		# 过滤数据报信息
+		for d in range(len(msgpack_list)):
+			msgpack_bytes = msgpack_list[d]
+			if int(msgpack_bytes[0]) == 3:
+				rssi = int(msgpack_bytes[7])-256
+				print("蓝牙设备mac:%x:%x:%x:%x:%x:%x" %(msgpack_bytes[1], msgpack_bytes[2], msgpack_bytes[3], msgpack_bytes[4], msgpack_bytes[5], msgpack_bytes[6]))
+				print("网关一RSSI:", rssi)
+				get_rssi(rssi, 1)
+
+	elif (msgpack.unpackb(msg.payload)[b'mac'] == b"30AEA48F46F0"):
+		
+		print("===============================================")
+		print("id:", msgpack.unpackb(msg.payload)[b'mid'])
+		print("网关IP地址:", msgpack.unpackb(msg.payload)[b'ip'])
+		msgpack_list = msgpack.unpackb(msg.payload)[b'devices']
+		
+		# 过滤数据报信息
+		for d in range(len(msgpack_list)):
+			msgpack_bytes = msgpack_list[d]
+			if int(msgpack_bytes[0]) == 3:
+				rssi = int(msgpack_bytes[7])-256
+				print("蓝牙设备mac:%x:%x:%x:%x:%x:%x" %(msgpack_bytes[1], msgpack_bytes[2], msgpack_bytes[3], msgpack_bytes[4], msgpack_bytes[5], msgpack_bytes[6]))
+				print("网关二RSSI:", rssi)
+				get_rssi(rssi, 2)
+	
+	elif (msgpack.unpackb(msg.payload)[b'mac'] == b"B4E62DBE98FD"):
+		
+		print("===============================================")
+		print("id:", msgpack.unpackb(msg.payload)[b'mid'])
+		print("网关IP地址:", msgpack.unpackb(msg.payload)[b'ip'])
+		msgpack_list = msgpack.unpackb(msg.payload)[b'devices']
+		
+		# 过滤数据报信息
+		for d in range(len(msgpack_list)):
+			msgpack_bytes = msgpack_list[d]
+			if int(msgpack_bytes[0]) == 3:
+				rssi = int(msgpack_bytes[7])-256
+				print("蓝牙设备mac:%x:%x:%x:%x:%x:%x" %(msgpack_bytes[1], msgpack_bytes[2], msgpack_bytes[3], msgpack_bytes[4], msgpack_bytes[5], msgpack_bytes[6]))
+				print("网关三RSSI:", rssi)
+				get_rssi(rssi, 3)
+
+
+# 距离估算
+def get_distance(measuredPower, rssi):
+	if rssi >= 0:
+		return -1.0
+	elif measuredPower == 0:
+		return -1.0
+	rssi_ratio = rssi * 1.0 / measuredPower
+	if rssi_ratio < 1.0:
+		return pow(rssi_ratio, 10)
+	else:
+		rssi_distance = (0.42093) * pow(rssi_ratio, 6.9476) + 0.54992
+		return rssi_distance
+
+
+
+# 均值滤波
+def avg_rssi(rssi_list, i):
+	avg_rssi = int((rssi_list[0] + rssi_list[1] + rssi_list[2]) / 3)
+	print("this is avg_rssi:", avg_rssi)
+	rssi_distance = get_distance(-50, avg_rssi)
+	print("rssi_distance is :", rssi_distance, i)
+
+
+# rssi 数组
+def get_rssi(rssi, i):
+	if i == 1:
+		print("rssi_1 is :", rssi)
+		rssi_list_1.append(rssi)
+		print(rssi_list_1)
+		if len(rssi_list_1) == 3:
+			avg_rssi(rssi_list_1, i)
+		elif len(rssi_list_1) > 3:
+			del rssi_list_1[0]
+			avg_rssi(rssi_list_1, i)
+
+	elif i == 2:
+		print("rssi_2 is :", rssi)
+		rssi_list_2.append(rssi)
+		print(rssi_list_2)
+		if len(rssi_list_2) == 3:
+			avg_rssi(rssi_list_2, i)
+		elif len(rssi_list_2) > 3:
+			del rssi_list_2[0]
+			avg_rssi(rssi_list_2, i)
+
+	elif i == 3:
+		print("rssi_3 is :", rssi)
+		rssi_list_3.append(rssi)
+		print(rssi_list_3)
+		if len(rssi_list_3) == 3:
+			avg_rssi(rssi_list_3, i)
+		elif len(rssi_list_3) > 3:
+			del rssi_list_3[0]
+			avg_rssi(rssi_list_3, i)
+	
+
+def	on_connect(mosq, obj,flags,	rc):
+	print("Connected with result code "+str(rc))
+	mqttc.subscribe("your-topic", 0)
+	print("Connected")
+
+
+mqttc =	mqtt.Client()
+mqttc.username_pw_set("hello", "12345678")
+mqttc.on_connect = on_connect
+mqttc.on_subscribe = on_subscribe
+mqttc.on_message = on_message
+mqttc.connect("mqtt.bconimg.com", 1883,	60)
+mqttc.loop_forever()
